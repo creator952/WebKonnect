@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WebKonnect</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: sans-serif;
+      background-color: #f9f9f9;
+    }
+    #login-screen, #main-app {
+      display: none;
+    }
+    #login-screen.active, #main-app.active {
+      display: block;
+    }
+    .login-container {
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+    }
+    input, button {
+      padding: 10px;
+      margin: 10px;
+      font-size: 1em;
+    }
+    #sidebar {
+      width: 200px;
+      height: 100vh;
+      position: fixed;
+      background: #333;
+      color: white;
+      padding: 20px;
+    }
+    #sidebar button {
+      width: 100%;
+      margin-bottom: 10px;
+      color: white;
+      background: #444;
+      border: none;
+    }
+    #main {
+      margin-left: 200px;
+      padding: 20px;
+    }
+    #search-bar {
+      width: calc(100% - 220px);
+      margin-left: 200px;
+      padding: 10px;
+      position: sticky;
+      top: 0;
+      background: white;
+      border-bottom: 1px solid #ddd;
+    }
+    .page {
+      display: none;
+    }
+    .page.active {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div id="login-screen" class="active">
+    <div class="login-container">
+      <h2>Welcome to WebKonnect</h2>
+      <input id="username-input" placeholder="Enter your username" />
+      <button onclick="login()">Login</button>
+    </div>
+  </div>
+
+  <div id="main-app">
+    <div id="sidebar">
+      <h3>WebKonnect</h3>
+      <p id="user-display"></p>
+      <button onclick="showPage('world')">🌍 World</button>
+      <button onclick="showPage('contacts')">📇 Contacts</button>
+      <button onclick="showPage('messages')">💬 Messages</button>
+      <button onclick="logout()">🚪 Logout</button>
+    </div>
+
+    <div id="search-bar">
+      <input id="search-input" placeholder="Search users..." oninput="searchUsers()" style="width: 100%;" />
+    </div>
+
+    <div id="main">
+      <div id="world" class="page active">
+        <h2>🌍 World Feed</h2>
+        <textarea placeholder="Post to the world..." style="width: 100%; height: 60px;"></textarea>
+        <button>Send</button>
+        <div id="world-posts">
+          <!-- Posts go here -->
+        </div>
+      </div>
+
+      <div id="contacts" class="page">
+        <h2>📇 Contacts</h2>
+        <ul id="contacts-list"></ul>
+      </div>
+
+      <div id="messages" class="page">
+        <h2>💬 Direct Messages</h2>
+        <div>Select a contact to chat</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const accounts = ["JJ", "Em", "test1", "test2"];
+    let currentUser = null;
+
+    function login() {
+      const username = document.getElementById("username-input").value;
+      if (accounts.includes(username)) {
+        currentUser = username;
+        document.getElementById("user-display").innerText = `👤 ${username}`;
+        document.getElementById("login-screen").classList.remove("active");
+        document.getElementById("main-app").classList.add("active");
+        loadContacts();
+      } else {
+        alert("Username not found.");
+      }
+    }
+
+    function logout() {
+      currentUser = null;
+      document.getElementById("login-screen").classList.add("active");
+      document.getElementById("main-app").classList.remove("active");
+    }
+
+    function showPage(pageId) {
+      document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+      document.getElementById(pageId).classList.add("active");
+    }
+
+    function loadContacts() {
+      const list = document.getElementById("contacts-list");
+      list.innerHTML = "";
+      accounts.forEach(user => {
+        if (user !== currentUser) {
+          const li = document.createElement("li");
+          li.textContent = user;
+          list.appendChild(li);
+        }
+      });
+    }
+
+    function searchUsers() {
+      const q = document.getElementById("search-input").value.toLowerCase();
+      const contacts = document.getElementById("contacts-list").getElementsByTagName("li");
+      for (let i = 0; i < contacts.length; i++) {
+        const name = contacts[i].textContent.toLowerCase();
+        contacts[i].style.display = name.includes(q) ? "list-item" : "none";
+      }
+    }
+  </script>
+</body>
+</html>
