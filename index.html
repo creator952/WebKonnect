@@ -2,13 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>WebKonnect</title>
   <style>
     body, html {
-      margin: 0;
-      padding: 0;
-      height: 100%;
+      margin: 0; padding: 0; height: 100%;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
         Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
       background: #f5f5f5;
@@ -16,9 +14,10 @@
     input, button, select, textarea {
       font-size: 1rem;
       padding: 10px;
-      margin: 5px;
+      margin: 5px 0;
       border-radius: 6px;
       border: 1px solid #ccc;
+      width: 100%;
       box-sizing: border-box;
     }
     button {
@@ -31,14 +30,25 @@
       background-color: #0056b3;
     }
     #login-screen, #app-screen {
-      display: none;
       padding: 20px;
     }
-    #login-screen.active, #app-screen.active {
+    #login-screen {
+      max-width: 320px;
+      margin: 40px auto;
+      display: none;
+    }
+    #login-screen.active {
+      display: block;
+    }
+    #app-screen {
+      display: none;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    #app-screen.active {
       display: block;
     }
     #sidebar {
-      width: 100%;
       background: #222;
       color: white;
       padding: 10px;
@@ -46,34 +56,38 @@
       justify-content: space-around;
       position: sticky;
       top: 0;
-      z-index: 10;
+      margin-bottom: 10px;
     }
     #sidebar button {
       background: none;
       border: none;
       color: white;
       font-weight: bold;
-      font-size: 1.1rem;
+      flex: 1;
+      margin: 0 5px;
+      padding: 10px 0;
     }
     #content {
+      background: white;
       padding: 10px;
+      border-radius: 8px;
+      min-height: 300px;
     }
     .hidden {
       display: none;
     }
     ul {
-      list-style: none;
-      padding: 0;
+      list-style-type: none;
+      padding-left: 0;
+      max-height: 200px;
+      overflow-y: auto;
     }
-    .contact {
+    li.contact {
       background: #ddd;
       padding: 8px;
       border-radius: 6px;
       margin: 5px 0;
       cursor: pointer;
-    }
-    .contact:hover {
-      background: #ccc;
     }
     .message {
       padding: 8px;
@@ -86,419 +100,444 @@
     .sent {
       background: #cce5ff;
       float: right;
-      text-align: right;
     }
     .received {
       background: #e2e3e5;
       float: left;
-      text-align: left;
     }
     .photochat-img {
       max-width: 200px;
       border-radius: 10px;
       margin-top: 10px;
+      display: block;
     }
   </style>
 
-  <!-- Firebase SDKs -->
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js"></script>
+  <!-- Firebase v9 modular SDKs -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+    import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
+    import { getDatabase, ref, set, get, update, onValue } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
+
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_AUTH_DOMAIN",
+      databaseURL: "YOUR_DATABASE_URL",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_STORAGE_BUCKET",
+      messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getDatabase(app);
+
+    let currentUser = null;
+    let allUsers = [];
+    let contacts = [];
+    let chatWith = null;
+
+    // Elements
+    const loginScreen = document.getElementById('login-screen');
+    const appScreen = document.getElementById('app-screen');
+
+    // Pages
+    const pages = {
+      feed: document.getElementById('feed-page'),
+      contacts: document.getElementById('contacts-page'),
+      chat: document.getElementById('chat-page'),
+      photo: document.getElementById('photo-page'),
+    };
+
+    function showPage(pageId) {
+      Object.values(pages).forEach(p => p.classList.add('hidden'));
+      pages[pageId].classList.remove('hidden');
+    }
+
+    // Signup
+    window.signup = async function() {
+      const email = document.getElementById('signup-email').value.trim();
+      const pass = document.getElementById('signup-password').value;
+      if (!email || !pass) return alert('Enter email and password to sign up.');
+      try {
+        const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
+        currentUser = userCredential.user;
+        await saveUserProfile(currentUser);
+        clearInputs();
+      } catch (e) {
+        alert('Signup error: ' + e.message);
+      }
+    }
+
+    // Login
+    window.login = async function() {
+      const email = document.getElementById('login-email').value.trim();
+      const pass = document.getElementById('login-password').value;
+      if (!email || !pass) return alert('Enter email and password to login.');
+      try {
+        const userCredential = await signInWithEmailAndPassword(auth, email, pass);
+        currentUser = userCredential.user;
+        clearInputs();
+      } catch (e) {
+        alert('Login error: ' + e.message);
+      }
+    }
+
+    // Logout
+    window.logout = function() {
+      signOut(auth);
+    }
+
+    // Clear login/signup inputs
+    function clearInputs() {
+      document.getElementById('login-email').value = '';
+      document.getElementById('login-password').value = '';
+      document.getElementById('signup-email').value = '';
+      document.getElementById('signup-password').value = '';
+    }
+
+    // Save user profile to DB
+    async function saveUserProfile(user) {
+      const userRef = ref(db, 'users/' + user.uid);
+      await set(userRef, {
+        email: user.email,
+        contacts: {}
+      });
+    }
+
+    // Load all users for search & contacts
+    async function loadAllUsers() {
+      const usersSnapshot = await get(ref(db, 'users'));
+      const usersObj = usersSnapshot.val() || {};
+      allUsers = Object.entries(usersObj).map(([uid, user]) => ({ uid, email: user.email }));
+      renderUserSearch('');
+    }
+
+    // Render user search results
+    function renderUserSearch(query) {
+      const resultsEl = document.getElementById('search-results');
+      resultsEl.innerHTML = '';
+      const filtered = allUsers.filter(u =>
+        u.email.toLowerCase().includes(query.toLowerCase()) &&
+        u.uid !== currentUser.uid &&
+        !contacts.includes(u.uid)
+      );
+      filtered.forEach(u => {
+        const li = document.createElement('li');
+        li.textContent = u.email;
+        li.className = 'contact';
+        li.onclick = () => addContact(u.uid);
+        resultsEl.appendChild(li);
+      });
+    }
+
+    window.searchUsers = function() {
+      const query = document.getElementById('user-search').value.trim();
+      renderUserSearch(query);
+    }
+
+    // Load contacts from DB
+    async function loadContacts() {
+      const contactRef = ref(db, `users/${currentUser.uid}/contacts`);
+      const snapshot = await get(contactRef);
+      contacts = snapshot.exists() ? Object.keys(snapshot.val()) : [];
+      renderContacts();
+    }
+
+    // Render contacts list
+    function renderContacts() {
+      const listEl = document.getElementById('contact-list');
+      listEl.innerHTML = '';
+      contacts.forEach(uid => {
+        const user = allUsers.find(u => u.uid === uid);
+        if (!user) return;
+        const li = document.createElement('li');
+        li.textContent = user.email;
+        li.className = 'contact';
+        li.onclick = () => openChat(uid);
+        listEl.appendChild(li);
+      });
+    }
+
+    // Add contact
+    async function addContact(uid) {
+      if (contacts.includes(uid)) return alert('Already a contact');
+      const updates = {};
+      updates[`users/${currentUser.uid}/contacts/${uid}`] = true;
+      await update(ref(db), updates);
+      contacts.push(uid);
+      renderContacts();
+      document.getElementById('search-results').innerHTML = '';
+      document.getElementById('user-search').value = '';
+    }
+
+    // Open chat with user
+    function openChat(uid) {
+      chatWith = uid;
+      const user = allUsers.find(u => u.uid === uid);
+      document.getElementById('chat-with').textContent = `Chat with ${user ? user.email : 'User'}`;
+      populateChatUserSelect(uid);
+      showPage('chat');
+      loadMessages();
+    }
+
+    // Populate chat user select dropdown
+    function populateChatUserSelect(selectedUid) {
+      const select = document.getElementById('chat-user-select');
+      select.innerHTML = '';
+      allUsers.forEach(u => {
+        if (u.uid === currentUser.uid) return;
+        const opt = document.createElement('option');
+        opt.value = u.uid;
+        opt.textContent = u.email;
+        if (u.uid === selectedUid) opt.selected = true;
+        select.appendChild(opt);
+      });
+    }
+
+    // Load messages for chat
+    async function loadMessages() {
+      const select = document.getElementById('chat-user-select');
+      chatWith = select.value;
+      const chatBox = document.getElementById('chat-box');
+      chatBox.innerHTML = '';
+
+      const chatKey = getChatKey(currentUser.uid, chatWith);
+      const chatRef = ref(db, 'chats/' + chatKey);
+
+      const snapshot = await get(chatRef);
+      const messages = snapshot.val() || [];
+
+      messages.forEach(msg => {
+        const div = document.createElement('div');
+        div.textContent = msg.text;
+        div.className = 'message ' + (msg.sender === currentUser.uid ? 'sent' : 'received');
+        chatBox.appendChild(div);
+      });
+
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    // Send message
+    window.sendMessage = async function() {
+      const input = document.getElementById('chat-input');
+      const text = input.value.trim();
+      if (!text || !chatWith) return;
+      const chatKey = getChatKey(currentUser.uid, chatWith);
+      const chatRef = ref(db, 'chats/' + chatKey);
+
+      const snapshot = await get(chatRef);
+      const messages = snapshot.val() || [];
+
+      messages.push({ sender: currentUser.uid, text, timestamp: Date.now() });
+      await set(chatRef, messages);
+
+      input.value = '';
+      loadMessages();
+    }
+
+    function getChatKey(uid1, uid2) {
+      return [uid1, uid2].sort().join('_');
+    }
+
+    // WORLD FEED
+    async function loadWorldFeed() {
+      const feedEl = document.getElementById('world-feed');
+      feedEl.innerHTML = '';
+
+      const snapshot = await get(ref(db, 'world_feed'));
+      const posts = snapshot.val() || [];
+
+      posts.forEach(post => {
+        const div = document.createElement('div');
+        div.textContent = `${post.email}: ${post.text}`;
+        div.style.background = '#eee';
+        div.style.margin = '10px 0';
+        div.style.padding = '8px';
+        div.style.borderRadius = '6px';
+        feedEl.appendChild(div);
+      });
+    }
+
+    window.postWorld = async function() {
+      const input = document.getElementById('world-post');
+      const text = input.value.trim();
+      if (!text) return alert('Enter text to post.');
+
+      const feedRef = ref(db, 'world_feed');
+      const snapshot = await get(feedRef);
+      const posts = snapshot.val() || [];
+      posts.unshift({ email: currentUser.email, text, timestamp: Date.now() });
+      await set(feedRef, posts);
+
+      input.value = '';
+      loadWorldFeed();
+    }
+
+    // PHOTO CHAT
+    let cameraStream = null;
+
+    async function initCamera() {
+      try {
+        cameraStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        document.getElementById('camera').srcObject = cameraStream;
+      } catch (e) {
+        alert('Camera access denied or unavailable: ' + e.message);
+      }
+      initPhotoRecipients();
+      loadPhotoChatHistory();
+    }
+
+    function initPhotoRecipients() {
+      const select = document.getElementById('photo-recipient');
+      select.innerHTML = '';
+      allUsers.forEach(u => {
+        if (u.uid === currentUser.uid) return;
+        const opt = document.createElement('option');
+        opt.value = u.uid;
+        opt.textContent = u.email;
+        select.appendChild(opt);
+      });
+    }
+
+    window.takePhoto = async function() {
+      if (!cameraStream) return alert('Camera not initialized');
+      const video = document.getElementById('camera');
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0);
+
+      const text = document.getElementById('photo-text').value.trim();
+      if (text) {
+        ctx.font = '30px Arial';
+        ctx.fillStyle = 'white';
+        ctx.strokeStyle = 'black';
+        ctx.lineWidth = 3;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.strokeText(text, canvas.width / 2, canvas.height - 30);
+        ctx.fillText(text, canvas.width / 2, canvas.height - 30);
+      }
+
+      const dataUrl = canvas.toDataURL('image/png');
+      const recipientUid = document.getElementById('photo-recipient').value;
+      if (!recipientUid) return alert('Select a recipient');
+
+      const photoRef = ref(db, `photochat/${recipientUid}/${currentUser.uid}`);
+      const snapshot = await get(photoRef);
+      const photos = snapshot.val() || [];
+      photos.unshift({ from: currentUser.uid, photo: dataUrl, text, timestamp: Date.now() });
+      await set(photoRef, photos);
+
+      document.getElementById('photo-text').value = '';
+      loadPhotoChatHistory();
+    }
+
+    async function loadPhotoChatHistory() {
+      const historyDiv = document.getElementById('photochat-history');
+      historyDiv.innerHTML = '';
+
+      const photoRef = ref(db, `photochat/${currentUser.uid}`);
+      const snapshot = await get(photoRef);
+      const chats = snapshot.val() || {};
+
+      for (const fromUid in chats) {
+        const photos = chats[fromUid];
+        photos.forEach(p => {
+          const div = document.createElement('div');
+          div.style.margin = '10px 0';
+          div.innerHTML = `
+            <strong>From: ${allUsers.find(u => u.uid === fromUid)?.email || 'Unknown'}</strong><br/>
+            <img src="${p.photo}" alt="Photo" class="photochat-img" />
+            ${p.text ? `<em>${p.text}</em>` : ''}
+          `;
+          historyDiv.appendChild(div);
+        });
+      }
+    }
+
+    // When user changes chat user in select dropdown
+    window.loadMessages = loadMessages;
+
+    // Auth state listener to toggle UI
+    onAuthStateChanged(auth, async user => {
+      if (user) {
+        currentUser = user;
+        loginScreen.classList.remove('active');
+        appScreen.classList.add('active');
+        await loadAllUsers();
+        await loadContacts();
+        showPage('feed');
+        initCamera();
+        loadWorldFeed();
+        initPhotoRecipients();
+      } else {
+        currentUser = null;
+        loginScreen.classList.add('active');
+        appScreen.classList.remove('active');
+      }
+    });
+  </script>
 </head>
 <body>
 
-<div id="login-screen" class="active">
-  <h2>WebKonnect</h2>
-  <input type="email" id="login-email" placeholder="Email" />
-  <input type="password" id="login-password" placeholder="Password" />
-  <button onclick="login()">Login</button>
-  <p>or</p>
-  <input type="email" id="signup-email" placeholder="New Email" />
-  <input type="password" id="signup-password" placeholder="New Password" />
-  <button onclick="signup()">Sign Up</button>
-</div>
-
-<div id="app-screen">
-  <div id="sidebar">
-    <button onclick="showPage('feed')">🌍 World</button>
-    <button onclick="showPage('contacts')">📇 Contacts</button>
-    <button onclick="showPage('chat')">💬 Messages</button>
-    <button onclick="showPage('photo')">📸 Photo Chat</button>
-    <button onclick="logout()">🚪 Logout</button>
+  <div id="login-screen" class="active">
+    <h2>WebKonnect</h2>
+    <input type="email" id="login-email" placeholder="Email" autocomplete="username" />
+    <input type="password" id="login-password" placeholder="Password" autocomplete="current-password" />
+    <button onclick="login()">Login</button>
+    <p style="text-align:center;">or</p>
+    <input type="email" id="signup-email" placeholder="New Email" autocomplete="email" />
+    <input type="password" id="signup-password" placeholder="New Password" autocomplete="new-password" />
+    <button onclick="signup()">Sign Up</button>
   </div>
 
-  <div id="content">
-    <div id="feed-page" class="page">
-      <h3>🌍 World Feed</h3>
-      <textarea id="world-post" placeholder="Post something..." style="width:100%; height:60px;"></textarea>
-      <button onclick="postWorld()">Post</button>
-      <div id="world-feed"></div>
+  <div id="app-screen" class="">
+    <div id="sidebar">
+      <button onclick="showPage('feed')">🌍 World</button>
+      <button onclick="showPage('contacts')">📇 Contacts</button>
+      <button onclick="showPage('chat')">💬 Messages</button>
+      <button onclick="showPage('photo')">📸 Photo Chat</button>
+      <button onclick="logout()">🚪 Logout</button>
     </div>
 
-    <div id="contacts-page" class="page hidden">
-      <h3>📇 Contacts</h3>
-      <input id="user-search" placeholder="Search users..." oninput="searchUsers()" />
-      <ul id="search-results"></ul>
-      <h4>Your Contacts:</h4>
-      <ul id="contact-list"></ul>
-    </div>
+    <div id="content">
+      <div id="feed-page" class="page">
+        <h3>🌍 World Feed</h3>
+        <textarea id="world-post" placeholder="Post something..." style="height:60px;"></textarea>
+        <button onclick="postWorld()">Post</button>
+        <div id="world-feed"></div>
+      </div>
 
-    <div id="chat-page" class="page hidden">
-      <h3 id="chat-with">💬 Direct Messages</h3>
-      <select id="chat-user-select" onchange="loadMessages()"></select>
-      <div id="chat-box" style="height:200px; overflow-y:auto; background:#fff; padding:10px; border:1px solid #ccc; margin:10px 0;"></div>
-      <input id="chat-input" placeholder="Type message..." />
-      <button onclick="sendMessage()">Send</button>
-    </div>
+      <div id="contacts-page" class="page hidden">
+        <h3>📇 Contacts</h3>
+        <input id="user-search" placeholder="Search users..." oninput="searchUsers()" />
+        <ul id="search-results"></ul>
+        <h4>Your Contacts:</h4>
+        <ul id="contact-list"></ul>
+      </div>
 
-    <div id="photo-page" class="page hidden">
-      <h3>📸 Photo Chat</h3>
-      <select id="photo-recipient"></select>
-      <video id="camera" autoplay playsinline width="100%" style="background:#000;"></video>
-      <input id="photo-text" placeholder="Add text..." />
-      <button onclick="takePhoto()">📷 Capture & Send</button>
-      <div id="photochat-history"></div>
+      <div id="chat-page" class="page hidden">
+        <h3 id="chat-with">💬 Direct Messages</h3>
+        <select id="chat-user-select" onchange="loadMessages()"></select>
+        <div id="chat-box" style="height:200px; overflow-y:auto; background:#fff; padding:10px; border:1px solid #ccc; margin:10px 0;"></div>
+        <input id="chat-input" placeholder="Type message..." />
+        <button onclick="sendMessage()">Send</button>
+      </div>
+
+      <div id="photo-page" class="page hidden">
+        <h3>📸 Photo Chat</h3>
+        <select id="photo-recipient"></select>
+        <video id="camera" autoplay playsinline style="width:100%; border-radius:8px; background:#000;"></video>
+        <input id="photo-text" placeholder="Add text..." />
+        <button onclick="takePhoto()">📷 Capture & Send</button>
+        <div id="photochat-history"></div>
+      </div>
     </div>
   </div>
-</div>
-
-<script>
-  // Firebase config (fill in your exact config)
-  const firebaseConfig = {
-    apiKey: "AIzaSyBEQ1o2xDKKYmvxcXTixwCUmfsiGo2qUpk",
-    authDomain: "webkonnect-6db38.firebaseapp.com",
-    databaseURL: "https://webkonnect-6db38-default-rtdb.firebaseio.com",
-    projectId: "webkonnect-6db38",
-    storageBucket: "webkonnect-6db38.firebasestorage.app",
-    messagingSenderId: "496108261938",
-    appId: "1:496108261938:web:b7c66a94448fefa3dba22b",
-    measurementId: "G-9NMKXXPXW5"
-  };
-
-  // Initialize Firebase
-  firebase.initializeApp(firebaseConfig);
-  const auth = firebase.auth();
-  const db = firebase.database();
-
-  let currentUser = null;
-  let allUsers = [];
-  let contacts = [];
-  let chatWith = null;
-  let cameraStream = null;
-
-  // Show only one page at a time
-  function showPage(pageId) {
-    document.querySelectorAll('.page').forEach(p => {
-      p.classList.toggle('hidden', p.id !== pageId + '-page');
-    });
-  }
-
-  // --- AUTH FUNCTIONS ---
-
-  async function signup() {
-    const email = document.getElementById('signup-email').value.trim();
-    const pass = document.getElementById('signup-password').value;
-    if (!email || !pass) return alert('Enter email and password to sign up.');
-    try {
-      const userCredential = await auth.createUserWithEmailAndPassword(email, pass);
-      currentUser = userCredential.user;
-      await saveUserProfile(currentUser);
-      onLogin();
-    } catch (e) {
-      alert('Signup error: ' + e.message);
-    }
-  }
-
-  async function login() {
-    const email = document.getElementById('login-email').value.trim();
-    const pass = document.getElementById('login-password').value;
-    if (!email || !pass) return alert('Enter email and password to login.');
-    try {
-      const userCredential = await auth.signInWithEmailAndPassword(email, pass);
-      currentUser = userCredential.user;
-      onLogin();
-    } catch (e) {
-      alert('Login error: ' + e.message);
-    }
-  }
-
-  function logout() {
-    auth.signOut();
-  }
-
-  async function saveUserProfile(user) {
-    const userRef = db.ref('users/' + user.uid);
-    await userRef.set({
-      email: user.email,
-      contacts: {}
-    });
-  }
-
-  async function onLogin() {
-    document.getElementById('login-screen').classList.remove('active');
-    document.getElementById('app-screen').classList.add('active');
-    await loadAllUsers();
-    await loadContacts();
-    showPage('feed');
-    initCamera();
-    loadWorldFeed();
-    initPhotoRecipients();
-  }
-
-  // --- USERS & SEARCH ---
-
-  async function loadAllUsers() {
-    const usersSnapshot = await db.ref('users').once('value');
-    const usersObj = usersSnapshot.val() || {};
-    allUsers = Object.entries(usersObj).map(([uid, user]) => ({ uid, email: user.email }));
-    renderUserSearch('');
-  }
-
-  function renderUserSearch(query) {
-    const resultsEl = document.getElementById('search-results');
-    resultsEl.innerHTML = '';
-    const filtered = allUsers.filter(u => 
-      u.email.toLowerCase().includes(query.toLowerCase()) && 
-      u.uid !== currentUser.uid && 
-      !contacts.includes(u.uid)
-    );
-    filtered.forEach(u => {
-      const li = document.createElement('li');
-      li.textContent = u.email;
-      li.style.cursor = 'pointer';
-      li.onclick = () => addContact(u.uid);
-      resultsEl.appendChild(li);
-    });
-  }
-
-  function searchUsers() {
-    const query = document.getElementById('user-search').value.trim();
-    renderUserSearch(query);
-  }
-
-  // --- CONTACTS ---
-
-  async function loadContacts() {
-    const contactRef = db.ref('users/' + currentUser.uid + '/contacts');
-    const snapshot = await contactRef.once('value');
-    contacts = snapshot.exists() ? Object.keys(snapshot.val()) : [];
-    renderContacts();
-  }
-
-  function renderContacts() {
-    const listEl = document.getElementById('contact-list');
-    listEl.innerHTML = '';
-    contacts.forEach(uid => {
-      const user = allUsers.find(u => u.uid === uid);
-      if (!user) return;
-      const li = document.createElement('li');
-      li.textContent = user.email;
-      li.className = 'contact';
-      li.onclick = () => openChat(uid);
-      listEl.appendChild(li);
-    });
-  }
-
-  async function addContact(uid) {
-    if (contacts.includes(uid)) return alert('Already a contact');
-    const updates = {};
-    updates[`users/${currentUser.uid}/contacts/${uid}`] = true;
-    await db.ref().update(updates);
-    contacts.push(uid);
-    renderContacts();
-    document.getElementById('search-results').innerHTML = '';
-    document.getElementById('user-search').value = '';
-  }
-
-  // --- CHAT ---
-
-  function openChat(uid) {
-    chatWith = uid;
-    const user = allUsers.find(u => u.uid === uid);
-    document.getElementById('chat-with').textContent = `Chat with ${user ? user.email : 'User'}`;
-    populateChatUserSelect(uid);
-    showPage('chat');
-    loadMessages();
-  }
-
-  function populateChatUserSelect(selectedUid) {
-    const select = document.getElementById('chat-user-select');
-    select.innerHTML = '';
-    allUsers.forEach(u => {
-      if (u.uid === currentUser.uid) return;
-      const opt = document.createElement('option');
-      opt.value = u.uid;
-      opt.textContent = u.email;
-      if (u.uid === selectedUid) opt.selected = true;
-      select.appendChild(opt);
-    });
-  }
-
-  async function loadMessages() {
-    const select = document.getElementById('chat-user-select');
-    chatWith = select.value;
-    const chatBox = document.getElementById('chat-box');
-    chatBox.innerHTML = '';
-
-    const chatKey = getChatKey(currentUser.uid, chatWith);
-    const snapshot = await db.ref('chats/' + chatKey).once('value');
-    const messages = snapshot.val() || [];
-
-    messages.forEach(msg => {
-      const div = document.createElement('div');
-      div.textContent = msg.text;
-      div.className = 'message ' + (msg.sender === currentUser.uid ? 'sent' : 'received');
-      chatBox.appendChild(div);
-    });
-
-    chatBox.scrollTop = chatBox.scrollHeight;
-  }
-
-  async function sendMessage() {
-    const input = document.getElementById('chat-input');
-    const text = input.value.trim();
-    if (!text || !chatWith) return;
-    const chatKey = getChatKey(currentUser.uid, chatWith);
-    const chatRef = db.ref('chats/' + chatKey);
-    const snapshot = await chatRef.once('value');
-    const messages = snapshot.val() || [];
-
-    messages.push({ sender: currentUser.uid, text, timestamp: Date.now() });
-    await chatRef.set(messages);
-
-    input.value = '';
-    loadMessages();
-  }
-
-  function getChatKey(uid1, uid2) {
-    return [uid1, uid2].sort().join('_');
-  }
-
-  // --- WORLD FEED ---
-
-  async function loadWorldFeed() {
-    const feedEl = document.getElementById('world-feed');
-    feedEl.innerHTML = '';
-    const snapshot = await db.ref('world_feed').once('value');
-    const posts = snapshot.val() || [];
-    posts.forEach(post => {
-      const div = document.createElement('div');
-      div.textContent = post.email + ': ' + post.text;
-      div.style.background = '#eee';
-      div.style.margin = '10px 0';
-      div.style.padding = '8px';
-      div.style.borderRadius = '6px';
-      feedEl.appendChild(div);
-    });
-  }
-
-  async function postWorld() {
-    const input = document.getElementById('world-post');
-    const text = input.value.trim();
-    if (!text) return alert('Enter text to post.');
-    const snapshot = await db.ref('world_feed').once('value');
-    const posts = snapshot.val() || [];
-    posts.unshift({ email: currentUser.email, text, timestamp: Date.now() });
-    await db.ref('world_feed').set(posts);
-    input.value = '';
-    loadWorldFeed();
-  }
-
-  // --- PHOTO CHAT ---
-
-  async function initCamera() {
-    try {
-      cameraStream = await navigator.mediaDevices.getUserMedia({ video: true });
-      document.getElementById('camera').srcObject = cameraStream;
-    } catch (e) {
-      alert('Camera access denied or unavailable: ' + e.message);
-    }
-    initPhotoRecipients();
-    loadPhotoChatHistory();
-  }
-
-  function initPhotoRecipients() {
-    const select = document.getElementById('photo-recipient');
-    select.innerHTML = '';
-    allUsers.forEach(u => {
-      if (u.uid === currentUser.uid) return;
-      const opt = document.createElement('option');
-      opt.value = u.uid;
-      opt.textContent = u.email;
-      select.appendChild(opt);
-    });
-  }
-
-  async function takePhoto() {
-    if (!cameraStream) return alert('Camera not initialized');
-    const video = document.getElementById('camera');
-    const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0);
-
-    const text = document.getElementById('photo-text').value.trim();
-    if (text) {
-      ctx.font = '30px Arial';
-      ctx.fillStyle = 'white';
-      ctx.strokeStyle = 'black';
-      ctx.lineWidth = 3;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'bottom';
-      ctx.strokeText(text, canvas.width / 2, canvas.height - 30);
-      ctx.fillText(text, canvas.width / 2, canvas.height - 30);
-    }
-
-    const dataUrl = canvas.toDataURL('image/png');
-    const recipientUid = document.getElementById('photo-recipient').value;
-    if (!recipientUid) return alert('Select a recipient');
-
-    const photoRef = db.ref(`photochat/${recipientUid}/${currentUser.uid}`);
-    const snapshot = await photoRef.once('value');
-    const photos = snapshot.val() || [];
-    photos.unshift({ from: currentUser.uid, photo: dataUrl, text, timestamp: Date.now() });
-    await photoRef.set(photos);
-
-    document.getElementById('photo-text').value = '';
-    loadPhotoChatHistory();
-  }
-
-  async function loadPhotoChatHistory() {
-    const historyDiv = document.getElementById('photochat-history');
-    historyDiv.innerHTML = '';
-
-    const photoRef = db.ref(`photochat/${currentUser.uid}`);
-    const snapshot = await photoRef.once('value');
-    const chats = snapshot.val() || {};
-
-    for (const fromUid in chats) {
-      const photos = chats[fromUid];
-      photos.forEach(p => {
-        const div = document.createElement('div');
-        div.style.margin = '10px 0';
-        div.innerHTML = `
-          <strong>From: ${allUsers.find(u => u.uid === fromUid)?.email || 'Unknown'}</strong><br/>
-          <img src="${p.photo}" alt="Photo" class="photochat-img" />
-          ${p.text ? `<em>${p.text}</em>` : ''}
-        `;
-        historyDiv.appendChild(div);
-      });
-    }
-  }
-
-  // --- AUTH STATE LISTENER ---
-  auth.onAuthStateChanged(user => {
-    if (user) {
-      currentUser = user;
-      onLogin();
-    } else {
-      currentUser = null;
-      document.getElementById('login-screen').classList.add('active');
-      document.getElementById('app-screen').classList.remove('active');
-    }
-  });
-</script>
 
 </body>
 </html>
