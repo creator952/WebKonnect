@@ -1,603 +1,111 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>WebKonnect</title>
-<style>
-  /* Reset & base */
-  body, html {
-    margin: 0; padding: 0; height: 100%;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
-      Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-    background: #f9f9f9;
-    overflow: hidden;
-  }
-  #login-screen, #main-app {
-    height: 100%;
-    display: none;
-  }
-  #login-screen.active, #main-app.active {
-    display: flex;
-  }
-  /* Login screen */
-  #login-screen {
-    justify-content: center;
-    align-items: center;
-    flex-direction: column;
-  }
-  input, button {
-    font-size: 1rem;
-    padding: 10px;
-    margin: 10px;
-    border-radius: 6px;
-    border: 1px solid #ccc;
-  }
-  button {
-    cursor: pointer;
-    background-color: #0078d7;
-    color: white;
-    border: none;
-    transition: background-color 0.3s ease;
-  }
-  button:hover {
-    background-color: #005a9e;
-  }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WebKonnect</title>
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
+        Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      background: #f5f5f5;
+    }
+    input, button {
+      font-size: 1rem;
+      padding: 10px;
+      margin: 5px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+    button {
+      background-color: #007bff;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    #login-screen, #app-screen {
+      display: none;
+      padding: 20px;
+    }
+    #login-screen.active, #app-screen.active {
+      display: block;
+    }
+    #sidebar {
+      width: 100%;
+      background: #222;
+      color: white;
+      padding: 10px;
+      display: flex;
+      justify-content: space-around;
+      position: sticky;
+      top: 0;
+    }
+    #sidebar button {
+      background: none;
+      border: none;
+      color: white;
+      font-weight: bold;
+    }
+    #content {
+      padding: 10px;
+    }
+    .hidden {
+      display: none;
+    }
+    .contact {
+      background: #ddd;
+      padding: 8px;
+      border-radius: 6px;
+      margin: 5px 0;
+      cursor: pointer;
+    }
+    .message {
+      padding: 8px;
+      margin: 4px 0;
+      border-radius: 5px;
+      max-width: 70%;
+      clear: both;
+    }
+    .sent {
+      background: #cce5ff;
+      float: right;
+    }
+    .received {
+      background: #e2e3e5;
+      float: left;
+    }
+    .photochat-img {
+      max-width: 200px;
+      border-radius: 10px;
+      margin-top: 10px;
+    }
+  </style>
 
-  /* App layout */
-  #main-app {
-    width: 100%;
-  }
-  #sidebar {
-    position: fixed;
-    top: 0; left: 0;
-    width: 220px;
-    height: 100vh;
-    background: #222;
-    color: white;
-    padding: 20px 10px;
-    box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
-  }
-  #sidebar h3 {
-    margin: 0 0 20px 10px;
-    font-weight: 600;
-    user-select: none;
-  }
-  #user-display {
-    margin-left: 10px;
-    margin-bottom: 25px;
-    font-weight: 600;
-    font-size: 1.1rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  #sidebar button {
-    background: #333;
-    border: none;
-    color: white;
-    padding: 12px;
-    margin: 6px 10px;
-    border-radius: 6px;
-    font-weight: 600;
-    text-align: left;
-    cursor: pointer;
-    user-select: none;
-    transition: background-color 0.3s ease;
-  }
-  #sidebar button:hover {
-    background-color: #444;
-  }
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js"></script>
 
-  /* Search bar */
-  #search-bar {
-    margin-left: 220px;
-    padding: 10px 20px;
-    background: white;
-    border-bottom: 1px solid #ddd;
-    box-sizing: border-box;
-  }
-  #search-bar input {
-    width: 100%;
-    font-size: 1rem;
-    padding: 10px;
-    border-radius: 6px;
-    border: 1px solid #ccc;
-    box-sizing: border-box;
-  }
-
-  /* Main content */
-  #main {
-    margin-left: 220px;
-    height: calc(100vh - 62px);
-    padding: 20px;
-    overflow-y: auto;
-    box-sizing: border-box;
-  }
-  .page {
-    display: none;
-    height: 100%;
-    box-sizing: border-box;
-  }
-  .page.active {
-    display: block;
-  }
-
-  /* Contacts */
-  #contacts-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-  }
-  #contacts-list li {
-    background: #eee;
-    margin: 8px 0;
-    padding: 12px 15px;
-    border-radius: 8px;
-    cursor: pointer;
-    user-select: none;
-    transition: background-color 0.3s ease;
-  }
-  #contacts-list li:hover {
-    background: #ddd;
-  }
-  #contacts-list li.active {
-    background: #0078d7;
-    color: white;
-  }
-
-  /* Messages */
-  #messages-container {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-  }
-  #chat-header {
-    font-weight: 700;
-    padding-bottom: 10px;
-    border-bottom: 1px solid #ccc;
-  }
-  #chat-messages {
-    flex: 1;
-    overflow-y: auto;
-    padding: 15px 10px;
-    margin-bottom: 10px;
-    background: #fafafa;
-    border-radius: 8px;
-    box-shadow: inset 0 0 5px #ddd;
-  }
-  .msg-bubble {
-    max-width: 70%;
-    padding: 10px 15px;
-    margin-bottom: 10px;
-    border-radius: 20px;
-    position: relative;
-    font-size: 0.95rem;
-    word-wrap: break-word;
-  }
-  .msg-bubble.sent {
-    background-color: #0078d7;
-    color: white;
-    align-self: flex-end;
-    border-bottom-right-radius: 3px;
-  }
-  .msg-bubble.received {
-    background-color: #ddd;
-    color: #222;
-    align-self: flex-start;
-    border-bottom-left-radius: 3px;
-  }
-  .msg-time {
-    font-size: 0.7rem;
-    opacity: 0.6;
-    position: absolute;
-    bottom: 3px;
-    right: 10px;
-  }
-
-  #chat-input-container {
-    display: flex;
-    gap: 8px;
-  }
-  #chat-input {
-    flex: 1;
-    padding: 10px;
-    font-size: 1rem;
-    border-radius: 20px;
-    border: 1px solid #ccc;
-    outline: none;
-  }
-  #chat-send-btn {
-    padding: 10px 15px;
-    font-weight: 700;
-    color: white;
-    background-color: #0078d7;
-    border: none;
-    border-radius: 20px;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
-  }
-  #chat-send-btn:hover {
-    background-color: #005a9e;
-  }
-
-  /* Photo Chat */
-  #photochat-video {
-    max-width: 100%;
-    border-radius: 10px;
-    box-shadow: 0 0 10px #999;
-  }
-  #photochat-canvas {
-    display: none;
-  }
-  #photochat-controls {
-    margin-top: 10px;
-  }
-  #photochat-controls button {
-    margin-right: 10px;
-    padding: 10px 15px;
-    font-weight: 600;
-    cursor: pointer;
-    border-radius: 6px;
-    border: none;
-    background: #0078d7;
-    color: white;
-    transition: background-color 0.3s ease;
-  }
-  #photochat-controls button:hover {
-    background: #005a9e;
-  }
-  #photochat-text {
-    margin-top: 10px;
-    width: 100%;
-    padding: 8px;
-    font-size: 1rem;
-    border-radius: 6px;
-    border: 1px solid #ccc;
-    box-sizing: border-box;
-  }
-  #photochat-messages {
-    margin-top: 20px;
-    max-height: 300px;
-    overflow-y: auto;
-  }
-  .photochat-img {
-    max-width: 200px;
-    margin: 10px 5px 10px 0;
-    border-radius: 10px;
-    cursor: pointer;
-    box-shadow: 0 0 5px #ccc;
-  }
-</style>
+  <script>
+    // TODO: Replace with your actual Firebase config:
+  const firebaseConfig = {
+  apiKey: "AIzaSyBEQ1o2xDKKYmvxcXTixwCUmfsiGo2qUpk",
+  authDomain: "webkonnect-6db38.firebaseapp.com",
+  projectId: "webkonnect-6db38",
+  storageBucket: "webkonnect-6db38.firebasestorage.app",
+  messagingSenderId: "496108261938",
+  appId: "1:496108261938:web:b7c66a94448fefa3dba22b",
+  measurementId: "G-9NMKXXPXW5"
+};
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.database();
+  </script>
 </head>
 <body>
-
-<div id="login-screen" class="active">
-  <div style="margin: auto; max-width: 320px; text-align:center;">
-    <h2>Welcome to WebKonnect</h2>
-    <input id="username-input" placeholder="Enter your username" autocomplete="off" />
-    <input id="password-input" type="password" placeholder="Enter your password" autocomplete="off" />
-    <button onclick="login()">Login</button>
-  </div>
-</div>
-
-<div id="main-app">
-  <div id="sidebar">
-    <h3>WebKonnect</h3>
-    <div id="user-display"></div>
-    <button onclick="showPage('world')">🌍 World</button>
-    <button onclick="showPage('contacts')">📇 Contacts</button>
-    <button onclick="showPage('messages')">💬 Messages</button>
-    <button onclick="showPage('photochat')">📸 Photo Chat</button>
-    <button onclick="logout()">🚪 Logout</button>
-  </div>
-
-  <div id="search-bar">
-    <input id="search-input" placeholder="Search users..." oninput="searchUsers()" autocomplete="off" />
-  </div>
-
-  <div id="main">
-    <div id="world" class="page active">
-      <h2>🌍 World Feed</h2>
-      <textarea id="world-post-input" placeholder="Post to the world..." style="width:100%; height:60px; border-radius:8px; padding:10px; border:1px solid #ccc; resize:none;"></textarea>
-      <button style="margin-top:10px;" onclick="postToWorld()">Send</button>
-      <div id="world-posts" style="margin-top:20px;"></div>
-    </div>
-
-    <div id="contacts" class="page">
-      <h2>📇 Contacts</h2>
-      <ul id="contacts-list"></ul>
-    </div>
-
-    <div id="messages" class="page">
-      <h2>💬 Direct Messages</h2>
-      <div id="messages-container">
-        <div id="chat-header" style="margin-bottom:10px;">Select a contact to start chatting</div>
-        <div id="chat-messages"></div>
-        <div id="chat-input-container" style="display:none;">
-          <input id="chat-input" placeholder="Type a message..." autocomplete="off" />
-          <button id="chat-send-btn" onclick="sendMessage()">Send</button>
-        </div>
-      </div>
-    </div>
-
-    <div id="photochat" class="page">
-      <h2>📸 Photo Chat</h2>
-      <video id="photochat-video" autoplay playsinline></video>
-      <canvas id="photochat-canvas"></canvas>
-      <input id="photochat-text" placeholder="Add text to your photo..." maxlength="50" />
-      <div id="photochat-controls">
-        <button onclick="takePhoto()">Take Photo</button>
-        <button onclick="clearPhoto()">Clear</button>
-      </div>
-      <div id="photochat-messages"></div>
-    </div>
-  </div>
-</div>
-
-<script>
-  const accounts = [
-    { username: "JJ", password: "jjpass" },
-    { username: "Em", password: "empass" },
-    { username: "test1", password: "test1pass" },
-    { username: "test2", password: "test2pass" }
-  ];
-  let currentUser = null;
-  let activeChatUser = null;
-
-  // Login function
-  function login() {
-    const username = document.getElementById("username-input").value.trim();
-    const password = document.getElementById("password-input").value;
-    if (!username || !password) {
-      alert("Please enter username and password.");
-      return;
-    }
-    const user = accounts.find(u => u.username === username && u.password === password);
-    if (!user) {
-      alert("Invalid username or password.");
-      return;
-    }
-    currentUser = username;
-    document.getElementById("user-display").textContent = `👤 ${currentUser}`;
-    document.getElementById("login-screen").classList.remove("active");
-    document.getElementById("main-app").classList.add("active");
-    loadContacts();
-    showPage("world");
-    loadWorldPosts();
-    initPhotoChat();
-  }
-
-  // Logout function
-  function logout() {
-    if (confirm("Logout?")) {
-      currentUser = null;
-      activeChatUser = null;
-      document.getElementById("username-input").value = "";
-      document.getElementById("password-input").value = "";
-      document.getElementById("login-screen").classList.add("active");
-      document.getElementById("main-app").classList.remove("active");
-      document.getElementById("chat-header").textContent = "Select a contact to start chatting";
-      document.getElementById("chat-messages").innerHTML = "";
-      document.getElementById("chat-input-container").style.display = "none";
-      clearPhoto();
-      stopPhotoChatStream();
-    }
-  }
-
-  // Show page tab
-  function showPage(pageId) {
-    document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
-    const page = document.getElementById(pageId);
-    if (page) page.classList.add("active");
-
-    if(pageId === "contacts") loadContacts();
-    if(pageId === "messages") loadMessages();
-  }
-
-  // Load contacts into contacts page
-  function loadContacts() {
-    const list = document.getElementById("contacts-list");
-    list.innerHTML = "";
-    accounts.forEach(acc => {
-      if (acc.username !== currentUser) {
-        const li = document.createElement("li");
-        li.textContent = acc.username;
-        li.onclick = () => openChat(acc.username);
-        if (activeChatUser === acc.username) li.classList.add("active");
-        list.appendChild(li);
-      }
-    });
-  }
-
-  // Open chat with contact
-  function openChat(username) {
-    activeChatUser = username;
-    document.getElementById("chat-header").textContent = `Chat with ${username}`;
-    document.getElementById("chat-input-container").style.display = "flex";
-    loadMessages();
-    showPage("messages");
-    loadContacts(); // highlight active chat user
-  }
-
-  // Storage key for chats
-  function chatStorageKey(user1, user2) {
-    const sorted = [user1, user2].sort();
-    return `chat_${sorted[0]}_${sorted[1]}`;
-  }
-
-  // Load messages from localStorage
-  function loadMessages() {
-    if (!activeChatUser) return;
-    const chatKey = chatStorageKey(currentUser, activeChatUser);
-    const msgsJSON = localStorage.getItem(chatKey) || "[]";
-    const msgs = JSON.parse(msgsJSON);
-    const container = document.getElementById("chat-messages");
-    container.innerHTML = "";
-    msgs.forEach(m => {
-      const div = document.createElement("div");
-      div.className = "msg-bubble " + (m.sender === currentUser ? "sent" : "received");
-      div.textContent = m.text;
-      // Add timestamp
-      const timeSpan = document.createElement("span");
-      timeSpan.className = "msg-time";
-      timeSpan.textContent = new Date(m.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-      div.appendChild(timeSpan);
-      container.appendChild(div);
-    });
-    container.scrollTop = container.scrollHeight;
-  }
-
-  // Send message
-  function sendMessage() {
-    const input = document.getElementById("chat-input");
-    const text = input.value.trim();
-    if (!text || !activeChatUser) return;
-    const chatKey = chatStorageKey(currentUser, activeChatUser);
-    const msgsJSON = localStorage.getItem(chatKey) || "[]";
-    const msgs = JSON.parse(msgsJSON);
-    msgs.push({ sender: currentUser, text, timestamp: Date.now() });
-    localStorage.setItem(chatKey, JSON.stringify(msgs));
-    input.value = "";
-    loadMessages();
-  }
-
-  // Search users from contacts & world feed
-  function searchUsers() {
-    const q = document.getElementById("search-input").value.toLowerCase();
-    // Filter contacts list
-    const listItems = document.querySelectorAll("#contacts-list li");
-    listItems.forEach(li => {
-      li.style.display = li.textContent.toLowerCase().includes(q) ? "list-item" : "none";
-    });
-    // Optional: Could filter world feed posts or messages similarly if extended
-  }
-
-  // World Feed Posts
-  function loadWorldPosts() {
-    const postsJSON = localStorage.getItem("world_posts") || "[]";
-    const posts = JSON.parse(postsJSON);
-    const container = document.getElementById("world-posts");
-    container.innerHTML = "";
-    posts.forEach(p => {
-      const div = document.createElement("div");
-      div.style.background = "#eee";
-      div.style.padding = "10px";
-      div.style.borderRadius = "10px";
-      div.style.marginBottom = "10px";
-      div.textContent = `${p.user}: ${p.text}`;
-      container.appendChild(div);
-    });
-  }
-
-  function postToWorld() {
-    const input = document.getElementById("world-post-input");
-    const text = input.value.trim();
-    if (!text) return alert("Type something to post!");
-    const postsJSON = localStorage.getItem("world_posts") || "[]";
-    const posts = JSON.parse(postsJSON);
-    posts.unshift({ user: currentUser, text, timestamp: Date.now() });
-    localStorage.setItem("world_posts", JSON.stringify(posts));
-    input.value = "";
-    loadWorldPosts();
-  }
-
-  // Photo Chat setup
-  let photoStream = null;
-  const video = document.getElementById("photochat-video");
-  const canvas = document.getElementById("photochat-canvas");
-  const ctx = canvas.getContext("2d");
-  const photochatMessages = document.getElementById("photochat-messages");
-
-  async function initPhotoChat() {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      alert("Camera API not supported in this browser.");
-      return;
-    }
-    try {
-      photoStream = await navigator.mediaDevices.getUserMedia({ video: true });
-      video.srcObject = photoStream;
-    } catch (e) {
-      alert("Could not access camera: " + e.message);
-    }
-    loadPhotoChatMessages();
-  }
-
-  function takePhoto() {
-    if (!photoStream) return alert("Camera not initialized.");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-    // Add text overlay
-    const text = document.getElementById("photochat-text").value.trim();
-    if (text) {
-      ctx.font = '30px Arial';
-      ctx.fillStyle = 'white';
-      ctx.strokeStyle = 'black';
-      ctx.lineWidth = 3;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'bottom';
-      ctx.strokeText(text, canvas.width / 2, canvas.height - 20);
-      ctx.fillText(text, canvas.width / 2, canvas.height - 20);
-    }
-
-    // Save photo as data URL
-    const dataUrl = canvas.toDataURL("image/png");
-
-    // Save message with photo
-    const photoMessages = JSON.parse(localStorage.getItem("photochat_messages") || "[]");
-    photoMessages.unshift({ user: currentUser, photo: dataUrl, text, timestamp: Date.now() });
-    localStorage.setItem("photochat_messages", JSON.stringify(photoMessages));
-
-    document.getElementById("photochat-text").value = "";
-    loadPhotoChatMessages();
-  }
-
-  function loadPhotoChatMessages() {
-    const photoMessages = JSON.parse(localStorage.getItem("photochat_messages") || "[]");
-    photochatMessages.innerHTML = "";
-    photoMessages.forEach(msg => {
-      const container = document.createElement("div");
-      container.style.marginBottom = "10px";
-      container.style.display = "flex";
-      container.style.alignItems = "center";
-      container.style.gap = "10px";
-
-      const img = document.createElement("img");
-      img.src = msg.photo;
-      img.className = "photochat-img";
-      img.title = `${msg.user} @ ${new Date(msg.timestamp).toLocaleString()}`;
-      container.appendChild(img);
-
-      if (msg.text) {
-        const p = document.createElement("p");
-        p.textContent = msg.text;
-        p.style.margin = "0";
-        p.style.fontWeight = "600";
-        container.appendChild(p);
-      }
-
-      photochatMessages.appendChild(container);
-    });
-  }
-
-  function clearPhoto() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    document.getElementById("photochat-text").value = "";
-  }
-
-  function stopPhotoChatStream() {
-    if (photoStream) {
-      photoStream.getTracks().forEach(track => track.stop());
-      photoStream = null;
-      video.srcObject = null;
-    }
-  }
-
-</script>
-
-</body>
-</html>
