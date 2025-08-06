@@ -1,2 +1,0 @@
-# WebKonnect
-A chat website
